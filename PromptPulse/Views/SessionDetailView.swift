@@ -9,7 +9,7 @@ struct SessionDetailView: View {
     let onReveal: () -> Void
     var state: AppState  // Use shared state for keyboard navigation
 
-    private var settings: AppSettings { AppSettings.shared }
+    @Bindable private var settings = AppSettings.shared
 
     /// Cached date formatter
     private static let dateFormatter: DateFormatter = {
@@ -271,7 +271,7 @@ struct MessageRowView: View {
 
     @State private var isHovered = false
 
-    private var settings: AppSettings { AppSettings.shared }
+    @Bindable private var settings = AppSettings.shared
 
     var body: some View {
         Button(action: onSelect) {
@@ -465,7 +465,7 @@ struct PromptDetailView: View {
     let promptId: String
     let onBack: () -> Void
 
-    private var settings: AppSettings { AppSettings.shared }
+    @Bindable private var settings = AppSettings.shared
 
     /// Get the user message and all subsequent messages until the next user message
     private var promptWithResponses: [Message] {
@@ -574,7 +574,7 @@ struct ExpandedMessageView: View {
     var showTokenStats: Bool = true
     var showModelBadge: Bool = true
 
-    private var settings: AppSettings { AppSettings.shared }
+    @Bindable private var settings = AppSettings.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -666,7 +666,7 @@ struct ExpandedMessageView: View {
 struct ContentBlockView: View {
     let block: ContentBlock
 
-    private var settings: AppSettings { AppSettings.shared }
+    @Bindable private var settings = AppSettings.shared
 
     var body: some View {
         switch block {

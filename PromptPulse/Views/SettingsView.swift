@@ -16,28 +16,35 @@ struct SettingsView: View {
                     Label("Display", systemImage: "text.alignleft")
                 }
         }
-        .frame(width: 400, height: 300)
-        .padding()
+        .frame(width: 400, height: 320)
     }
 
     private var appearanceTab: some View {
-        Form {
-            Section("Theme") {
-                Picker("Appearance", selection: $settings.theme) {
+        VStack(alignment: .leading, spacing: 20) {
+            // Theme section
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Theme")
+                    .font(.headline)
+                Picker("", selection: $settings.theme) {
                     ForEach(AppTheme.allCases) { theme in
                         Text(theme.displayName).tag(theme)
                     }
                 }
                 .pickerStyle(.segmented)
+                .labelsHidden()
             }
 
-            Section("Font Size") {
-                Picker("Font Size", selection: $settings.fontSize) {
+            // Font Size section
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Font Size")
+                    .font(.headline)
+                Picker("", selection: $settings.fontSize) {
                     ForEach(FontSize.allCases) { size in
                         Text(size.displayName).tag(size)
                     }
                 }
                 .pickerStyle(.segmented)
+                .labelsHidden()
 
                 // Preview
                 VStack(alignment: .leading, spacing: 4) {
@@ -49,60 +56,67 @@ struct SettingsView: View {
                         .font(settings.captionFont)
                         .foregroundColor(.secondary)
                 }
-                .padding(.vertical, 8)
+                .padding(12)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color(NSColor.controlBackgroundColor).opacity(0.5))
-                .cornerRadius(6)
+                .background(Color(NSColor.controlBackgroundColor))
+                .cornerRadius(8)
             }
+
+            Spacer()
         }
+        .padding(20)
     }
 
     private var displayTab: some View {
-        Form {
-            Section("Layout") {
+        VStack(alignment: .leading, spacing: 20) {
+            // Layout section
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Layout")
+                    .font(.headline)
                 Toggle("Compact Mode", isOn: $settings.compactMode)
-                    .help("Reduce spacing between elements")
             }
 
-            Section("Message Information") {
+            // Message Information section
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Message Information")
+                    .font(.headline)
                 Toggle("Show Token Stats", isOn: $settings.showTokenStats)
-                    .help("Display token counts on messages")
-
                 Toggle("Show Model Badge", isOn: $settings.showModelBadge)
-                    .help("Display which model generated each response")
-
                 Toggle("Show Cost Estimate", isOn: $settings.showCostEstimate)
-                    .help("Display estimated API cost")
             }
 
-            Section("Window") {
+            // Window section
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Window Size")
+                    .font(.headline)
                 HStack {
-                    Text("Default Width")
-                    Spacer()
-                    TextField("Width", value: Binding(
+                    Text("Width")
+                    TextField("", value: Binding(
                         get: { Int(settings.windowWidth) },
                         set: { settings.windowWidth = CGFloat($0) }
                     ), format: .number)
-                        .frame(width: 60)
-                        .textFieldStyle(.roundedBorder)
+                    .frame(width: 70)
+                    .textFieldStyle(.roundedBorder)
                     Text("px")
                         .foregroundColor(.secondary)
-                }
 
-                HStack {
-                    Text("Default Height")
-                    Spacer()
-                    TextField("Height", value: Binding(
+                    Spacer().frame(width: 20)
+
+                    Text("Height")
+                    TextField("", value: Binding(
                         get: { Int(settings.windowHeight) },
                         set: { settings.windowHeight = CGFloat($0) }
                     ), format: .number)
-                        .frame(width: 60)
-                        .textFieldStyle(.roundedBorder)
+                    .frame(width: 70)
+                    .textFieldStyle(.roundedBorder)
                     Text("px")
                         .foregroundColor(.secondary)
                 }
             }
+
+            Spacer()
         }
+        .padding(20)
     }
 }
 

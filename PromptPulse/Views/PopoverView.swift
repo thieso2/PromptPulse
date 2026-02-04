@@ -5,8 +5,7 @@ import PromptWatchKit
 struct PopoverView: View {
     var state: AppState
     @FocusState private var isFocused: Bool
-
-    private var settings: AppSettings { AppSettings.shared }
+    @Bindable private var settings = AppSettings.shared
 
     var body: some View {
         VStack(spacing: 0) {
@@ -75,6 +74,7 @@ struct PopoverView: View {
             }
         }
         .frame(width: settings.windowWidth)
+        .background(Color(NSColor.windowBackgroundColor))
         .focusable()
         .focused($isFocused)
         .onAppear { isFocused = true }
