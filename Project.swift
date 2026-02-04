@@ -7,7 +7,7 @@ let project = Project(
         developmentRegion: "en"
     ),
     packages: [
-        .local(path: "./swift")
+        .local(path: "./PromptPulseLib")
     ],
     targets: [
         .target(
