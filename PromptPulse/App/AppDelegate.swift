@@ -10,6 +10,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var settingsWindow: NSWindow?
     let state = AppState()
     private var eventMonitor: Any?
+    private var themeObservation: Any?
 
     private var settings: AppSettings { AppSettings.shared }
 
@@ -64,6 +65,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func createPanel() {
         let contentView = PopoverView(state: state)
+            .background(Color(NSColor.windowBackgroundColor))
         let hostingView = NSHostingView(rootView: contentView)
 
         // Create panel with standard window controls
@@ -76,7 +78,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
 
         panel?.title = "PromptPulse"
+        panel?.backgroundColor = NSColor.windowBackgroundColor
         panel?.contentView = hostingView
+        panel?.titlebarAppearsTransparent = true
+        panel?.titleVisibility = .hidden
+        panel?.styleMask.insert(.fullSizeContentView)
+        panel?.titlebarSeparatorStyle = .none
         panel?.isFloatingPanel = true
         panel?.level = .floating
         panel?.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
@@ -89,14 +96,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel?.maxSize = NSSize(width: 1000, height: 1200)
 
         // Apply theme
+        applyTheme()
+
+        // Save size on resize
+        panel?.delegate = self
+
+        // Observe theme changes
+        startThemeObservation()
+    }
+
+    private func applyTheme() {
         if let colorScheme = settings.theme.colorScheme {
             panel?.appearance = colorScheme == .dark
                 ? NSAppearance(named: .darkAqua)
                 : NSAppearance(named: .aqua)
+            settingsWindow?.appearance = panel?.appearance
+        } else {
+            panel?.appearance = nil
+            settingsWindow?.appearance = nil
         }
+    }
 
-        // Save size on resize
-        panel?.delegate = self
+    private func startThemeObservation() {
+        observeTheme()
+    }
+
+    private func observeTheme() {
+        themeObservation = withObservationTracking {
+            _ = self.settings.theme
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                self?.applyTheme()
+                self?.observeTheme()
+            }
+        }
     }
 
     nonisolated func applicationWillTerminate(_ notification: Notification) {
@@ -157,9 +190,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             settingsWindow?.contentView = hostingView
             settingsWindow?.center()
             settingsWindow?.isReleasedWhenClosed = false
+            settingsWindow?.level = .floating
         }
 
         settingsWindow?.makeKeyAndOrderFront(nil)
+        settingsWindow?.level = .floating
         NSApp.activate(ignoringOtherApps: true)
     }
 
