@@ -32,12 +32,14 @@ let project = Project(
             dependencies: [
                 .package(product: "PromptWatchKit")
             ],
+            entitlements: .file(path: "PromptPulse/Resources/PromptPulse.entitlements"),
             settings: .settings(
                 base: [
                     "MACOSX_DEPLOYMENT_TARGET": "15.0",
                     "SWIFT_VERSION": "6.0",
                     "CODE_SIGN_IDENTITY": "-",
-                    "PRODUCT_NAME": "PromptPulse"
+                    "PRODUCT_NAME": "PromptPulse",
+                    "ENABLE_HARDENED_RUNTIME": "YES"
                 ],
                 configurations: [
                     .debug(name: "Debug", settings: [
@@ -45,7 +47,8 @@ let project = Project(
                     ]),
                     .release(name: "Release", settings: [
                         "DEBUG_INFORMATION_FORMAT": "dwarf-with-dsym",
-                        "SWIFT_OPTIMIZATION_LEVEL": "-O"
+                        "SWIFT_OPTIMIZATION_LEVEL": "-O",
+                        "ENABLE_HARDENED_RUNTIME": "YES"
                     ])
                 ]
             )

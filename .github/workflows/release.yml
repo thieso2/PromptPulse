@@ -29,18 +29,25 @@ jobs:
       - name: Generate Xcode project
         run: mise exec -- tuist generate --no-open
 
-      # === UNSIGNED BUILD (always runs) ===
+      # === Check for signing secrets ===
+      - name: Check signing configuration
+        id: signing
+        run: |
+          if [ -n "${{ secrets.APPLE_CERTIFICATE_BASE64 }}" ]; then
+            echo "HAS_SIGNING=true" >> $GITHUB_OUTPUT
+          else
+            echo "HAS_SIGNING=false" >> $GITHUB_OUTPUT
+          fi
+
+      # === UNSIGNED BUILD ===
       - name: Build Release (unsigned)
-        if: ${{ !env.HAS_SIGNING_SECRETS }}
-        env:
-          HAS_SIGNING_SECRETS: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+        if: steps.signing.outputs.HAS_SIGNING != 'true'
         run: mise exec -- tuist xcodebuild build -scheme PromptPulse -configuration Release
 
       # === SIGNED BUILD (requires secrets) ===
       - name: Import Code Signing Certificate
-        if: ${{ env.HAS_SIGNING_SECRETS }}
+        if: steps.signing.outputs.HAS_SIGNING == 'true'
         env:
-          HAS_SIGNING_SECRETS: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
           CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
           CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
@@ -58,49 +65,78 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
           security list-keychain -d user -s $KEYCHAIN_PATH
 
+          # Verify certificate was imported
+          security find-identity -v -p codesigning $KEYCHAIN_PATH
+
       - name: Build Release (signed)
-        if: ${{ env.HAS_SIGNING_SECRETS }}
+        if: steps.signing.outputs.HAS_SIGNING == 'true'
         env:
-          HAS_SIGNING_SECRETS: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
           DEVELOPER_ID: ${{ secrets.APPLE_DEVELOPER_ID }}
         run: |
           mise exec -- tuist xcodebuild build \
             -scheme PromptPulse \
             -configuration Release \
             CODE_SIGN_IDENTITY="Developer ID Application: $DEVELOPER_ID" \
-            CODE_SIGN_STYLE=Manual
+            CODE_SIGN_STYLE=Manual \
+            ENABLE_HARDENED_RUNTIME=YES \
+            OTHER_CODE_SIGN_FLAGS="--options=runtime"
+
+      - name: Re-sign app with entitlements
+        if: steps.signing.outputs.HAS_SIGNING == 'true'
+        env:
+          DEVELOPER_ID: ${{ secrets.APPLE_DEVELOPER_ID }}
+        run: |
+          APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "PromptPulse.app" -path "*/Release/*" -type d | head -1)
+          echo "App path: $APP_PATH"
+
+          # Sign with hardened runtime and entitlements
+          codesign --force --deep --options runtime \
+            --sign "Developer ID Application: $DEVELOPER_ID" \
+            --entitlements "PromptPulse/Resources/PromptPulse.entitlements" \
+            "$APP_PATH"
+
+          # Verify signature
+          codesign --verify --verbose=4 "$APP_PATH"
+          echo "Signature verified!"
 
       - name: Notarize app
-        if: ${{ env.HAS_SIGNING_SECRETS && env.HAS_APPLE_ID }}
+        if: steps.signing.outputs.HAS_SIGNING == 'true'
         env:
-          HAS_SIGNING_SECRETS: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
-          HAS_APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
         run: |
-          APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "PromptPulse.app" -type d | head -1)
+          APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "PromptPulse.app" -path "*/Release/*" -type d | head -1)
 
           # Create ZIP for notarization
-          ditto -c -k --keepParent "$APP_PATH" PromptPulse.zip
+          ditto -c -k --keepParent "$APP_PATH" PromptPulse-notarize.zip
 
-          # Submit for notarization
-          xcrun notarytool submit PromptPulse.zip \
+          # Submit for notarization and capture submission ID
+          echo "Submitting for notarization..."
+          xcrun notarytool submit PromptPulse-notarize.zip \
             --apple-id "$APPLE_ID" \
             --team-id "$APPLE_TEAM_ID" \
             --password "$APPLE_APP_PASSWORD" \
             --wait
 
           # Staple the notarization ticket
+          echo "Stapling notarization ticket..."
           xcrun stapler staple "$APP_PATH"
+
+          echo "Notarization complete!"
 
       - name: Package app
         id: package
         run: |
-          APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "PromptPulse.app" -type d | head -1)
+          APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "PromptPulse.app" -path "*/Release/*" -type d | head -1)
+          if [ -z "$APP_PATH" ]; then
+            APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "PromptPulse.app" -type d | head -1)
+          fi
           if [ -z "$APP_PATH" ]; then
             APP_PATH=$(find . -name "PromptPulse.app" -type d | head -1)
           fi
+
+          echo "Packaging app from: $APP_PATH"
 
           VERSION=${{ steps.version.outputs.VERSION }}
           ZIP_NAME="PromptPulse-${VERSION}-macOS.zip"
