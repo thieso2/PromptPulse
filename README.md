@@ -22,11 +22,14 @@ A macOS menubar app for monitoring Claude Code CLI sessions.
 ## Building
 
 ```bash
-# Install Tuist (if not already installed)
-curl -Ls https://install.tuist.io | bash
+# Install mise (if not already installed)
+curl https://mise.run | sh
+
+# Install Tuist via mise
+mise install tuist
 
 # Generate Xcode project
-tuist generate --no-open
+mise exec -- tuist generate --no-open
 
 # Build debug
 tuist xcodebuild build -scheme PromptPulse

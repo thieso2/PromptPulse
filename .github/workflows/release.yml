@@ -16,27 +16,31 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install mise
+        uses: jdx/mise-action@v2
+
       - name: Install Tuist
-        run: |
-          curl -Ls https://install.tuist.io | bash
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+        run: mise install tuist
 
       - name: Extract version from tag
         id: version
         run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
       - name: Generate Xcode project
-        run: tuist generate --no-open
+        run: mise exec -- tuist generate --no-open
 
       # === UNSIGNED BUILD (always runs) ===
       - name: Build Release (unsigned)
-        if: ${{ !secrets.APPLE_CERTIFICATE_BASE64 }}
-        run: tuist xcodebuild build -scheme PromptPulse -configuration Release
+        if: ${{ !env.HAS_SIGNING_SECRETS }}
+        env:
+          HAS_SIGNING_SECRETS: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+        run: mise exec -- tuist xcodebuild build -scheme PromptPulse -configuration Release
 
       # === SIGNED BUILD (requires secrets) ===
       - name: Import Code Signing Certificate
-        if: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+        if: ${{ env.HAS_SIGNING_SECRETS }}
         env:
+          HAS_SIGNING_SECRETS: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
           CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
           CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
@@ -55,19 +59,22 @@ jobs:
           security list-keychain -d user -s $KEYCHAIN_PATH
 
       - name: Build Release (signed)
-        if: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+        if: ${{ env.HAS_SIGNING_SECRETS }}
         env:
+          HAS_SIGNING_SECRETS: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
           DEVELOPER_ID: ${{ secrets.APPLE_DEVELOPER_ID }}
         run: |
-          tuist xcodebuild build \
+          mise exec -- tuist xcodebuild build \
             -scheme PromptPulse \
             -configuration Release \
             CODE_SIGN_IDENTITY="Developer ID Application: $DEVELOPER_ID" \
             CODE_SIGN_STYLE=Manual
 
       - name: Notarize app
-        if: ${{ secrets.APPLE_CERTIFICATE_BASE64 && secrets.APPLE_ID }}
+        if: ${{ env.HAS_SIGNING_SECRETS && env.HAS_APPLE_ID }}
         env:
+          HAS_SIGNING_SECRETS: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          HAS_APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}

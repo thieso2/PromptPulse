@@ -12,19 +12,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install mise
+        uses: jdx/mise-action@v2
+
       - name: Install Tuist
-        run: |
-          curl -Ls https://install.tuist.io | bash
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+        run: mise install tuist
 
       - name: Generate Xcode project
-        run: tuist generate --no-open
+        run: mise exec -- tuist generate --no-open
 
       - name: Build
-        run: tuist xcodebuild build -scheme PromptPulse -configuration Debug
+        run: mise exec -- tuist xcodebuild build -scheme PromptPulse -configuration Debug
 
       - name: Run tests
-        run: tuist xcodebuild test -scheme PromptPulseTests -configuration Debug
+        run: mise exec -- tuist xcodebuild test -scheme PromptPulseTests -configuration Debug
 
   build-release:
     runs-on: macos-15
@@ -32,16 +33,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install mise
+        uses: jdx/mise-action@v2
+
       - name: Install Tuist
-        run: |
-          curl -Ls https://install.tuist.io | bash
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+        run: mise install tuist
 
       - name: Generate Xcode project
-        run: tuist generate --no-open
+        run: mise exec -- tuist generate --no-open
 
       - name: Build Release
-        run: tuist xcodebuild build -scheme PromptPulse -configuration Release
+        run: mise exec -- tuist xcodebuild build -scheme PromptPulse -configuration Release
 
       - name: Create app bundle artifact
         run: |
