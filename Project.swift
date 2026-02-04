@@ -29,10 +29,10 @@ let project = Project(
             resources: [
                 "PromptPulse/Resources/**"
             ],
+            entitlements: .file(path: "PromptPulse/Resources/PromptPulse.entitlements"),
             dependencies: [
                 .package(product: "PromptWatchKit")
             ],
-            entitlements: .file(path: "PromptPulse/Resources/PromptPulse.entitlements"),
             settings: .settings(
                 base: [
                     "MACOSX_DEPLOYMENT_TARGET": "15.0",
