@@ -1,19 +1,19 @@
 [tasks.build]
-description = "Build PromptBar (debug)"
-run = "tuist generate --no-open && tuist xcodebuild build -scheme PromptBar"
+description = "Build PromptPulse (debug)"
+run = "tuist generate --no-open && tuist xcodebuild build -scheme PromptPulse"
 
 [tasks."build:release"]
-description = "Build PromptBar release version"
-run = "tuist clean && tuist generate --no-open && tuist xcodebuild build -scheme PromptBar -configuration Release"
+description = "Build PromptPulse release version"
+run = "tuist clean && tuist generate --no-open && tuist xcodebuild build -scheme PromptPulse -configuration Release"
 
 [tasks."build:release:output"]
-description = "Build PromptBar release and copy to bin/"
+description = "Build PromptPulse release and copy to bin/"
 run = """
 tuist clean && tuist generate --no-open
-tuist xcodebuild build -scheme PromptBar -configuration Release -derivedDataPath .build
+tuist xcodebuild build -scheme PromptPulse -configuration Release -derivedDataPath .build
 mkdir -p bin
-cp -R .build/Build/Products/Release/PromptBar.app bin/
-echo "Built: bin/PromptBar.app"
+cp -R .build/Build/Products/Release/PromptPulse.app bin/
+echo "Built: bin/PromptPulse.app"
 """
 
 [tasks.clean]
