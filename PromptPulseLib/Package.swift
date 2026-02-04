@@ -1,4 +1,4 @@
-// swift-tools-version: 6.2
+// swift-tools-version: 6.0
 
 import PackageDescription
 
@@ -21,7 +21,7 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.3.0"),
         .package(url: "https://github.com/apple/swift-async-algorithms.git", from: "1.0.0"),
-        .package(url: "https://github.com/swiftlang/swift-testing.git", branch: "main"),
+        .package(url: "https://github.com/swiftlang/swift-testing.git", from: "0.12.0"),
     ],
     targets: [
         // Domain Layer - Pure business logic, no dependencies
