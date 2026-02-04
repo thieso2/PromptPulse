@@ -44,7 +44,13 @@
 
 ## Installation
 
-### Download (Recommended)
+### Homebrew (Recommended)
+
+```bash
+brew install thieso2/tap/promptpulse
+```
+
+### Direct Download
 
 1. Go to [Releases](https://github.com/thieso2/PromptPulse/releases/latest)
 2. Download `PromptPulse-x.x.x-macOS.zip`
