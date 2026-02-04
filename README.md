@@ -61,6 +61,29 @@ To install, drag the app to `/Applications` or run directly from the build folde
 | `Escape` | Go back |
 | `U` | Toggle user prompts filter (in message view) |
 
+## CI/CD
+
+[![CI](https://github.com/thieso2/PromptPulse/actions/workflows/ci.yml/badge.svg)](https://github.com/thieso2/PromptPulse/actions/workflows/ci.yml)
+
+### Continuous Integration
+
+Every push and PR triggers:
+- Debug build
+- Test suite
+
+### Releases
+
+Create a release by tagging:
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+The release workflow will build, sign (if configured), notarize, and publish to GitHub Releases.
+
+See [docs/SIGNING.md](docs/SIGNING.md) for code signing setup.
+
 ## Architecture
 
 ```

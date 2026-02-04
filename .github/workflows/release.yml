@@ -1,0 +1,123 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  APP_NAME: PromptPulse
+
+jobs:
+  release:
+    runs-on: macos-15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Tuist
+        run: |
+          curl -Ls https://install.tuist.io | bash
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Extract version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Generate Xcode project
+        run: tuist generate --no-open
+
+      # === UNSIGNED BUILD (always runs) ===
+      - name: Build Release (unsigned)
+        if: ${{ !secrets.APPLE_CERTIFICATE_BASE64 }}
+        run: tuist xcodebuild build -scheme PromptPulse -configuration Release
+
+      # === SIGNED BUILD (requires secrets) ===
+      - name: Import Code Signing Certificate
+        if: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+        env:
+          CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          # Create temporary keychain
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+
+          # Import certificate
+          CERTIFICATE_PATH=$RUNNER_TEMP/certificate.p12
+          echo -n "$CERTIFICATE_BASE64" | base64 --decode -o $CERTIFICATE_PATH
+          security import $CERTIFICATE_PATH -P "$CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security list-keychain -d user -s $KEYCHAIN_PATH
+
+      - name: Build Release (signed)
+        if: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+        env:
+          DEVELOPER_ID: ${{ secrets.APPLE_DEVELOPER_ID }}
+        run: |
+          tuist xcodebuild build \
+            -scheme PromptPulse \
+            -configuration Release \
+            CODE_SIGN_IDENTITY="Developer ID Application: $DEVELOPER_ID" \
+            CODE_SIGN_STYLE=Manual
+
+      - name: Notarize app
+        if: ${{ secrets.APPLE_CERTIFICATE_BASE64 && secrets.APPLE_ID }}
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "PromptPulse.app" -type d | head -1)
+
+          # Create ZIP for notarization
+          ditto -c -k --keepParent "$APP_PATH" PromptPulse.zip
+
+          # Submit for notarization
+          xcrun notarytool submit PromptPulse.zip \
+            --apple-id "$APPLE_ID" \
+            --team-id "$APPLE_TEAM_ID" \
+            --password "$APPLE_APP_PASSWORD" \
+            --wait
+
+          # Staple the notarization ticket
+          xcrun stapler staple "$APP_PATH"
+
+      - name: Package app
+        id: package
+        run: |
+          APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "PromptPulse.app" -type d | head -1)
+          if [ -z "$APP_PATH" ]; then
+            APP_PATH=$(find . -name "PromptPulse.app" -type d | head -1)
+          fi
+
+          VERSION=${{ steps.version.outputs.VERSION }}
+          ZIP_NAME="PromptPulse-${VERSION}-macOS.zip"
+
+          # Create distribution ZIP
+          ditto -c -k --keepParent "$APP_PATH" "$ZIP_NAME"
+
+          echo "ZIP_NAME=$ZIP_NAME" >> $GITHUB_OUTPUT
+          echo "ZIP_PATH=$(pwd)/$ZIP_NAME" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ${{ steps.package.outputs.ZIP_NAME }}
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(github.ref, '-beta') || contains(github.ref, '-alpha') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Cleanup keychain
+        if: always()
+        run: |
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          if [ -f "$KEYCHAIN_PATH" ]; then
+            security delete-keychain $KEYCHAIN_PATH
+          fi

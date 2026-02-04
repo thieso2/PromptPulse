@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Tuist
+        run: |
+          curl -Ls https://install.tuist.io | bash
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Generate Xcode project
+        run: tuist generate --no-open
+
+      - name: Build
+        run: tuist xcodebuild build -scheme PromptPulse -configuration Debug
+
+      - name: Run tests
+        run: tuist xcodebuild test -scheme PromptPulseTests -configuration Debug
+
+  build-release:
+    runs-on: macos-15
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Tuist
+        run: |
+          curl -Ls https://install.tuist.io | bash
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Generate Xcode project
+        run: tuist generate --no-open
+
+      - name: Build Release
+        run: tuist xcodebuild build -scheme PromptPulse -configuration Release
+
+      - name: Create app bundle artifact
+        run: |
+          APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "PromptPulse.app" -type d | head -1)
+          if [ -z "$APP_PATH" ]; then
+            APP_PATH=$(find . -path "*/Release/PromptPulse.app" -type d | head -1)
+          fi
+          if [ -z "$APP_PATH" ]; then
+            APP_PATH=$(find . -name "PromptPulse.app" -type d | head -1)
+          fi
+          echo "Found app at: $APP_PATH"
+          mkdir -p artifacts
+          cp -R "$APP_PATH" artifacts/
+
+      - name: Upload unsigned app
+        uses: actions/upload-artifact@v4
+        with:
+          name: PromptPulse-unsigned
+          path: artifacts/PromptPulse.app
+          retention-days: 7
