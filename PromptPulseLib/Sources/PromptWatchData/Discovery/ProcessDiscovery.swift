@@ -33,11 +33,19 @@ public struct ProcessDiscovery: Sendable {
                 checkedCount += 1
 
                 // Check if this is a Claude process (main or child)
-                let isClaudeProcess = processName == "claude" || processName.contains("claude-code")
+                // The native binary installed via install.sh resolves to a versioned path
+                // like ~/.local/share/claude/versions/2.1.32, so proc_name returns "2.1.32".
+                // Fall back to proc_pidpath to check the full executable path.
+                var isClaudeProcess = processName == "claude" || processName.contains("claude-code")
+                if !isClaudeProcess,
+                   let path = try? DarwinSyscalls.getProcessPath(pid: pid),
+                   path.contains("/claude/versions/") {
+                    isClaudeProcess = true
+                }
 
                 // Log processes that might be Claude-related (for debugging)
                 let lowerName = processName.lowercased()
-                if lowerName.contains("claude") || lowerName.contains("node") || lowerName.contains("npm") {
+                if isClaudeProcess || lowerName.contains("claude") || lowerName.contains("node") || lowerName.contains("npm") {
                     print("[DEBUG] PID \(pid): name='\(processName)' -> isClaudeProcess=\(isClaudeProcess)")
                 }
 
