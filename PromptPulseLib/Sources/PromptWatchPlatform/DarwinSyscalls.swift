@@ -48,9 +48,50 @@ public enum DarwinSyscalls {
 
         // Extract PIDs from kinfo_proc structures
         let actualCount = actualSize / MemoryLayout<kinfo_proc>.stride
-        return procs.prefix(actualCount)
+        let pids = procs.prefix(actualCount)
             .map { Int32($0.kp_proc.p_pid) }
             .filter { $0 > 0 }
+        print("[DEBUG] sysctl KERN_PROC_ALL returned \(actualCount) entries, \(pids.count) valid PIDs")
+        return pids
+    }
+
+    // MARK: - Debug Helper
+
+    /// Debug helper to inspect a specific PID (for troubleshooting)
+    public static func debugPID(_ pid: Int32) {
+        print("[DEBUG] === Inspecting PID \(pid) ===")
+
+        // Try proc_name
+        do {
+            let name = try getProcessName(pid: pid)
+            print("[DEBUG]   proc_name: '\(name)'")
+        } catch {
+            print("[DEBUG]   proc_name FAILED: \(error.localizedDescription)")
+        }
+
+        // Try proc_pidpath for full path
+        do {
+            let path = try getProcessPath(pid: pid)
+            print("[DEBUG]   proc_pidpath: '\(path)'")
+        } catch {
+            print("[DEBUG]   proc_pidpath FAILED: \(error.localizedDescription)")
+        }
+
+        // Try task info
+        do {
+            let info = try getTaskInfo(pid: pid)
+            print("[DEBUG]   taskinfo: ppid=\(info.parentPID), mem=\(String(format: "%.1f", info.residentMemoryMB))MB")
+        } catch {
+            print("[DEBUG]   taskinfo FAILED: \(error.localizedDescription)")
+        }
+
+        // Try BSD info for alternative name
+        do {
+            let bsd = try getBSDInfo(pid: pid)
+            print("[DEBUG]   bsdinfo.name: '\(bsd.name)'")
+        } catch {
+            print("[DEBUG]   bsdinfo FAILED: \(error.localizedDescription)")
+        }
     }
 
     // MARK: - Process Name

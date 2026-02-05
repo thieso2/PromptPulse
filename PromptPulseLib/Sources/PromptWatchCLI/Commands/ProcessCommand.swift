@@ -2,6 +2,7 @@ import ArgumentParser
 import Foundation
 import PromptWatchKit
 import PromptWatchDomain
+import PromptWatchPlatform
 
 /// List running Claude processes
 struct ProcessCommand: ParsableCommand {
@@ -22,7 +23,16 @@ struct ProcessCommand: ParsableCommand {
     @Option(name: .shortAndLong, help: "Refresh interval for watch mode (default: 1s)")
     var interval: String = "1s"
 
+    @Option(name: .long, help: "Debug a specific PID (inspect syscall results)")
+    var debugPid: Int32?
+
     mutating func run() throws {
+        // Debug mode for specific PID
+        if let pid = debugPid {
+            DarwinSyscalls.debugPID(pid)
+            return
+        }
+
         let kit = PromptWatchKit.shared
 
         if watch {
