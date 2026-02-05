@@ -22,7 +22,7 @@ struct SessionListView: View {
 
             // Sessions list
             ScrollView {
-                VStack(alignment: .leading, spacing: 8) {
+                LazyVStack(alignment: .leading, spacing: 8) {
                     if isLoading {
                         loadingView
                     } else if sessions.isEmpty {

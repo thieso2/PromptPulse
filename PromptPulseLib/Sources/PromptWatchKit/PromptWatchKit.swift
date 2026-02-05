@@ -57,11 +57,7 @@ public struct PromptWatchKit: Sendable {
 
     /// Load a full session with messages
     public func loadSession(filePath: String) async throws -> Session {
-        print("[PromptWatchKit] loadSession START")
-        let startTime = CFAbsoluteTimeGetCurrent()
-        let result = try await sessionRepository.loadSession(filePath: filePath)
-        print("[PromptWatchKit] loadSession DONE (\(Int((CFAbsoluteTimeGetCurrent() - startTime) * 1000))ms)")
-        return result
+        try await sessionRepository.loadSession(filePath: filePath)
     }
 
     /// Load a session by ID within a project
@@ -71,9 +67,9 @@ public struct PromptWatchKit: Sendable {
 
     // MARK: - Analytics
 
-    /// Calculate cost for a session
+    /// Calculate cost for a session (model-aware, uses per-message pricing)
     public func calculateCost(for session: Session) -> Decimal {
-        costCalculator.calculate(usage: session.totalUsage)
+        CostCalculator.calculateForSession(session)
     }
 
     /// Get statistics for a session

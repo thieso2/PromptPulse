@@ -33,27 +33,16 @@ public actor SessionRepository {
 
     /// Load a session by file path (async, runs parsing on background thread)
     public func loadSession(filePath: String) async throws -> Session {
-        let startTime = CFAbsoluteTimeGetCurrent()
-        print("[SessionRepo] loadSession START: \(filePath)")
-
         // Check cache first (fast path)
         if let cached = sessionCache[filePath], !isCacheStale(cached, filePath: filePath) {
-            print("[SessionRepo] CACHE HIT (\(Int((CFAbsoluteTimeGetCurrent() - startTime) * 1000))ms)")
             return cached.session
         }
-        print("[SessionRepo] cache miss, parsing on background thread...")
 
         // Parse session on background thread to avoid blocking UI
         let parser = self.parser
         let session = try await Task.detached(priority: .userInitiated) {
-            print("[SessionRepo] Task.detached START (background thread)")
-            let parseStart = CFAbsoluteTimeGetCurrent()
-            let result = try parser.parseSession(filePath: filePath)
-            print("[SessionRepo] Task.detached DONE: \(result.messages.count) msgs in \(Int((CFAbsoluteTimeGetCurrent() - parseStart) * 1000))ms")
-            return result
+            try parser.parseSession(filePath: filePath)
         }.value
-
-        print("[SessionRepo] background task returned (\(Int((CFAbsoluteTimeGetCurrent() - startTime) * 1000))ms)")
 
         // Cache it
         let fileModDate = try? FileManager.default
@@ -65,7 +54,6 @@ public actor SessionRepository {
             fileModDate: fileModDate
         )
 
-        print("[SessionRepo] loadSession DONE (\(Int((CFAbsoluteTimeGetCurrent() - startTime) * 1000))ms)")
         return session
     }
 

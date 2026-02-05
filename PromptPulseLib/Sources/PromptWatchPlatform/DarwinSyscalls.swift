@@ -51,7 +51,9 @@ public enum DarwinSyscalls {
         let pids = procs.prefix(actualCount)
             .map { Int32($0.kp_proc.p_pid) }
             .filter { $0 > 0 }
+        #if DEBUG
         print("[DEBUG] sysctl KERN_PROC_ALL returned \(actualCount) entries, \(pids.count) valid PIDs")
+        #endif
         return pids
     }
 
@@ -59,6 +61,7 @@ public enum DarwinSyscalls {
 
     /// Debug helper to inspect a specific PID (for troubleshooting)
     public static func debugPID(_ pid: Int32) {
+        #if DEBUG
         print("[DEBUG] === Inspecting PID \(pid) ===")
 
         // Try proc_name
@@ -92,6 +95,7 @@ public enum DarwinSyscalls {
         } catch {
             print("[DEBUG]   bsdinfo FAILED: \(error.localizedDescription)")
         }
+        #endif
     }
 
     // MARK: - Process Name

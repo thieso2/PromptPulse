@@ -183,15 +183,9 @@ public struct SessionParser: @unchecked Sendable {
 
     /// Parse a session file and return a full Session object
     public func parseSession(filePath: String) throws -> Session {
-        let parseStartTime = CFAbsoluteTimeGetCurrent()
-        print("[SessionParser] parseSession START")
-
         let url = URL(fileURLWithPath: filePath)
         let lines = try reader.readLines(from: url)
-        print("[SessionParser] readLines done: \(lines.count) lines (\(Int((CFAbsoluteTimeGetCurrent() - parseStartTime) * 1000))ms)")
-
         let messages = parseLines(lines)
-        print("[SessionParser] parseLines done: \(messages.count) msgs (\(Int((CFAbsoluteTimeGetCurrent() - parseStartTime) * 1000))ms)")
 
         // Extract session ID from filename
         let sessionId = url.deletingPathExtension().lastPathComponent

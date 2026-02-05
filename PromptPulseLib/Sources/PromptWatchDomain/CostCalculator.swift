@@ -36,18 +36,42 @@ public struct CostCalculator: Sendable {
         return calculate(usage: usage)
     }
 
-    /// Format a cost as a currency string
-    public static func format(cost: Decimal) -> String {
+    /// Cached currency formatter for cost display
+    private static let costFormatter: NumberFormatter = {
         let formatter = NumberFormatter()
         formatter.numberStyle = .currency
         formatter.currencyCode = "USD"
         formatter.minimumFractionDigits = 4
         formatter.maximumFractionDigits = 4
-        return formatter.string(from: cost as NSDecimalNumber) ?? "$0.0000"
+        return formatter
+    }()
+
+    /// Format a cost as a currency string
+    public static func format(cost: Decimal) -> String {
+        costFormatter.string(from: cost as NSDecimalNumber) ?? "$0.0000"
     }
 }
 
 extension CostCalculator {
     /// Shared default calculator instance
     public static let shared = CostCalculator()
+
+    /// Calculate cost for a single message using its model-specific pricing
+    public static func calculateForMessage(_ message: Message) -> Decimal {
+        let pricing = Pricing.forModel(message.model)
+        let calculator = CostCalculator(pricing: pricing)
+        return calculator.calculate(usage: message.usage)
+    }
+
+    /// Calculate total cost across messages using per-message model-aware pricing
+    public static func calculatePerMessage(messages: [Message]) -> Decimal {
+        messages.reduce(Decimal.zero) { total, message in
+            total + calculateForMessage(message)
+        }
+    }
+
+    /// Calculate total cost for a session using per-message model-aware pricing
+    public static func calculateForSession(_ session: Session) -> Decimal {
+        calculatePerMessage(messages: session.messages)
+    }
 }

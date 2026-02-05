@@ -53,4 +53,12 @@ public struct Pricing: Sendable {
 
     /// Default pricing (Sonnet)
     public static let `default` = sonnet
+
+    /// Resolve pricing tier from a model identifier string
+    public static func forModel(_ model: String?) -> Pricing {
+        guard let model = model?.lowercased() else { return .default }
+        if model.contains("opus") { return .opus }
+        if model.contains("haiku") { return .haiku }
+        return .sonnet
+    }
 }

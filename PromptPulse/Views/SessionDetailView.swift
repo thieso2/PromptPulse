@@ -11,20 +11,9 @@ struct SessionDetailView: View {
 
     @Bindable private var settings = AppSettings.shared
 
-    /// Cached date formatter
-    private static let dateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .short
-        formatter.timeStyle = .short
-        return formatter
-    }()
-
-    /// Filtered messages based on toggle
+    /// Filtered messages for display (delegates to AppState cache)
     private var displayedMessages: [Message] {
-        if state.showOnlyUserPrompts {
-            return session.messages.filter { $0.role == .user }
-        }
-        return session.messages
+        state.displayedMessages
     }
 
     /// Get the model used in this session
@@ -92,11 +81,19 @@ struct SessionDetailView: View {
                 }
 
                 if let startTime = session.startTime {
-                    Text(formattedDate(startTime))
+                    Text(Formatters.dateTimeFormatter.string(from: startTime))
                         .font(settings.captionFont)
                         .foregroundColor(.secondary)
                 }
             }
+
+            Button(action: {
+                MarkdownExporter.export(session: session)
+            }) {
+                Image(systemName: "square.and.arrow.up")
+            }
+            .buttonStyle(.borderless)
+            .help("Export as Markdown")
 
             Button(action: onReveal) {
                 Image(systemName: "folder")
@@ -107,25 +104,60 @@ struct SessionDetailView: View {
     }
 
     private var filterToolbar: some View {
-        HStack {
-            Button(action: {
-                state.toggleUserPromptsFilter()
-            }) {
-                HStack(spacing: 4) {
-                    Image(systemName: state.showOnlyUserPrompts ? "checkmark.square.fill" : "square")
-                        .foregroundColor(state.showOnlyUserPrompts ? .accentColor : .secondary)
-                    Image(systemName: "person.fill")
-                    Text("User Prompts Only")
+        VStack(spacing: 6) {
+            // Search bar for messages
+            HStack(spacing: 6) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundColor(.secondary)
+                    .font(.caption)
+
+                TextField("Search messages...", text: Binding(
+                    get: { state.messageSearchQuery },
+                    set: { newValue in
+                        state.messageSearchQuery = newValue
+                        state.updateDisplayedMessages()
+                    }
+                ))
+                .textFieldStyle(.plain)
+                .font(settings.captionFont)
+
+                if !state.messageSearchQuery.isEmpty {
+                    Button(action: {
+                        state.messageSearchQuery = ""
+                        state.updateDisplayedMessages()
+                    }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.secondary)
+                            .font(.caption)
+                    }
+                    .buttonStyle(.borderless)
                 }
-                .font(settings.captionFont)
             }
-            .buttonStyle(.plain)
+            .padding(6)
+            .background(Color(NSColor.textBackgroundColor))
+            .cornerRadius(6)
 
-            Spacer()
+            // Filter row
+            HStack {
+                Button(action: {
+                    state.toggleUserPromptsFilter()
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: state.showOnlyUserPrompts ? "checkmark.square.fill" : "square")
+                            .foregroundColor(state.showOnlyUserPrompts ? .accentColor : .secondary)
+                        Image(systemName: "person.fill")
+                        Text("User Prompts Only")
+                    }
+                    .font(settings.captionFont)
+                }
+                .buttonStyle(.plain)
 
-            Text("\(displayedMessages.count) shown")
-                .font(settings.captionFont)
-                .foregroundColor(.secondary)
+                Spacer()
+
+                Text("\(displayedMessages.count) shown")
+                    .font(settings.captionFont)
+                    .foregroundColor(.secondary)
+            }
         }
     }
 
@@ -198,11 +230,11 @@ struct SessionDetailView: View {
             if settings.showTokenStats {
                 let usage = session.totalUsage
                 HStack(spacing: 8) {
-                    Label("\(formatTokens(usage.inputTokens)) in", systemImage: "arrow.down.circle")
-                    Label("\(formatTokens(usage.outputTokens)) out", systemImage: "arrow.up.circle")
+                    Label("\(Formatters.tokens(usage.inputTokens)) in", systemImage: "arrow.down.circle")
+                    Label("\(Formatters.tokens(usage.outputTokens)) out", systemImage: "arrow.up.circle")
 
                     if usage.cacheReadTokens > 0 {
-                        Label("\(formatTokens(usage.cacheReadTokens)) cached", systemImage: "memorychip")
+                        Label("\(Formatters.tokens(usage.cacheReadTokens)) cached", systemImage: "memorychip")
                     }
                 }
                 .font(settings.captionFont)
@@ -211,9 +243,9 @@ struct SessionDetailView: View {
 
             Spacer()
 
-            // Cost estimate
+            // Cost estimate (model-aware)
             if settings.showCostEstimate {
-                let cost = CostCalculator.shared.calculate(usage: session.totalUsage)
+                let cost = CostCalculator.calculateForSession(session)
                 Text(CostCalculator.format(cost: cost))
                     .font(settings.captionFont)
                     .foregroundColor(.green)
@@ -221,40 +253,10 @@ struct SessionDetailView: View {
 
             // Duration
             if let duration = session.duration {
-                Text(formattedDuration(duration))
+                Text(Formatters.duration(duration))
                     .font(settings.captionFont)
                     .foregroundColor(.secondary)
             }
-        }
-    }
-
-    // MARK: - Formatting
-
-    private func formattedDate(_ date: Date) -> String {
-        Self.dateFormatter.string(from: date)
-    }
-
-    private func formatTokens(_ count: Int) -> String {
-        if count >= 1_000_000 {
-            return String(format: "%.1fM", Double(count) / 1_000_000)
-        }
-        if count >= 1000 {
-            return String(format: "%.1fK", Double(count) / 1000)
-        }
-        return "\(count)"
-    }
-
-    private func formattedDuration(_ interval: TimeInterval) -> String {
-        let hours = Int(interval) / 3600
-        let minutes = (Int(interval) % 3600) / 60
-        let seconds = Int(interval) % 60
-
-        if hours > 0 {
-            return String(format: "%dh %dm", hours, minutes)
-        } else if minutes > 0 {
-            return String(format: "%dm %ds", minutes, seconds)
-        } else {
-            return String(format: "%ds", seconds)
         }
     }
 }
@@ -270,6 +272,7 @@ struct MessageRowView: View {
     let onSelect: () -> Void
 
     @State private var isHovered = false
+    @State private var showCopied = false
 
     @Bindable private var settings = AppSettings.shared
 
@@ -277,9 +280,9 @@ struct MessageRowView: View {
         Button(action: onSelect) {
             HStack(alignment: .top, spacing: 8) {
                 // Role icon
-                Image(systemName: roleIcon)
+                Image(systemName: message.role.icon)
                     .font(settings.captionFont)
-                    .foregroundColor(roleColor)
+                    .foregroundColor(message.role.color)
                     .frame(width: 20)
 
                 VStack(alignment: .leading, spacing: 4) {
@@ -293,14 +296,14 @@ struct MessageRowView: View {
                     // Metadata row
                     HStack(spacing: 8) {
                         if let timestamp = message.timestamp {
-                            Text(formattedTime(timestamp))
+                            Text(Formatters.timeFormatter.string(from: timestamp))
                                 .foregroundColor(.secondary)
                         }
 
                         if showTokenStats {
                             let usage = message.usage
                             if usage.totalTokens > 0 {
-                                Text(formatTokens(usage.totalTokens))
+                                Text(Formatters.tokens(usage.totalTokens))
                                     .foregroundColor(.secondary)
                             }
                         }
@@ -312,12 +315,21 @@ struct MessageRowView: View {
                     .font(.caption2)
 
                     // Tool calls (collapsed)
-                    if hasToolCalls {
-                        toolCallsSummary
-                    }
+                    toolCallsSummary
                 }
 
                 Spacer()
+
+                // Copy button (shown on hover)
+                if isHovered {
+                    Button(action: copyToClipboard) {
+                        Image(systemName: showCopied ? "checkmark" : "doc.on.doc")
+                            .font(.caption2)
+                            .foregroundColor(showCopied ? .green : .secondary)
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Copy message text")
+                }
 
                 // Drill-down indicator for user prompts
                 if isUserPromptsMode && message.role == .user {
@@ -338,19 +350,12 @@ struct MessageRowView: View {
         }
     }
 
-    private var roleIcon: String {
-        switch message.role {
-        case .user: return "person.fill"
-        case .assistant: return "sparkles"
-        case .system: return "gear"
-        }
-    }
-
-    private var roleColor: Color {
-        switch message.role {
-        case .user: return .blue
-        case .assistant: return .purple
-        case .system: return .gray
+    private func copyToClipboard() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(message.textContent, forType: .string)
+        showCopied = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            showCopied = false
         }
     }
 
@@ -360,55 +365,33 @@ struct MessageRowView: View {
         } else if isHovered {
             return Color.accentColor.opacity(0.1)
         }
+        return message.role.color.opacity(0.1)
+    }
 
-        switch message.role {
-        case .user: return Color.blue.opacity(0.1)
-        case .assistant: return Color.purple.opacity(0.1)
-        case .system: return Color.gray.opacity(0.1)
+    private var toolCallCount: Int {
+        message.content.reduce(0) { count, block in
+            if case .toolUse = block { return count + 1 }
+            return count
         }
     }
 
-    private var hasToolCalls: Bool {
-        message.content.contains { block in
-            if case .toolUse = block { return true }
-            return false
-        }
-    }
-
+    @ViewBuilder
     private var toolCallsSummary: some View {
-        let toolCount = message.content.filter { block in
-            if case .toolUse = block { return true }
-            return false
-        }.count
-
-        return HStack(spacing: 4) {
-            Image(systemName: "wrench.and.screwdriver")
-            Text("\(toolCount) tool call\(toolCount == 1 ? "" : "s")")
+        let count = toolCallCount
+        if count > 0 {
+            HStack(spacing: 4) {
+                Image(systemName: "wrench.and.screwdriver")
+                Text("\(count) tool call\(count == 1 ? "" : "s")")
+            }
+            .font(.caption2)
+            .foregroundColor(.orange)
+            .padding(.vertical, 2)
+            .padding(.horizontal, 6)
+            .background(Color.orange.opacity(0.1))
+            .cornerRadius(4)
         }
-        .font(.caption2)
-        .foregroundColor(.orange)
-        .padding(.vertical, 2)
-        .padding(.horizontal, 6)
-        .background(Color.orange.opacity(0.1))
-        .cornerRadius(4)
     }
 
-    private static let timeFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.timeStyle = .short
-        return formatter
-    }()
-
-    private func formattedTime(_ date: Date) -> String {
-        Self.timeFormatter.string(from: date)
-    }
-
-    private func formatTokens(_ count: Int) -> String {
-        if count >= 1000 {
-            return String(format: "%.1fK", Double(count) / 1000)
-        }
-        return "\(count) tok"
-    }
 }
 
 // MARK: - Model Badge
@@ -534,8 +517,8 @@ struct PromptDetailView: View {
             HStack {
                 if settings.showTokenStats {
                     HStack(spacing: 8) {
-                        Label("\(formatTokens(interactionUsage.inputTokens)) in", systemImage: "arrow.down.circle")
-                        Label("\(formatTokens(interactionUsage.outputTokens)) out", systemImage: "arrow.up.circle")
+                        Label("\(Formatters.tokens(interactionUsage.inputTokens)) in", systemImage: "arrow.down.circle")
+                        Label("\(Formatters.tokens(interactionUsage.outputTokens)) out", systemImage: "arrow.up.circle")
                     }
                     .font(settings.captionFont)
                     .foregroundColor(.secondary)
@@ -544,7 +527,7 @@ struct PromptDetailView: View {
                 Spacer()
 
                 if settings.showCostEstimate {
-                    let cost = CostCalculator.shared.calculate(usage: interactionUsage)
+                    let cost = CostCalculator.calculatePerMessage(messages: promptWithResponses)
                     Text(CostCalculator.format(cost: cost))
                         .font(settings.captionFont)
                         .foregroundColor(.green)
@@ -553,16 +536,6 @@ struct PromptDetailView: View {
             .padding(.horizontal)
             .padding(.vertical, 8)
         }
-    }
-
-    private func formatTokens(_ count: Int) -> String {
-        if count >= 1_000_000 {
-            return String(format: "%.1fM", Double(count) / 1_000_000)
-        }
-        if count >= 1000 {
-            return String(format: "%.1fK", Double(count) / 1000)
-        }
-        return "\(count)"
     }
 }
 
@@ -580,9 +553,9 @@ struct ExpandedMessageView: View {
         VStack(alignment: .leading, spacing: 8) {
             // Header
             HStack {
-                Image(systemName: roleIcon)
-                    .foregroundColor(roleColor)
-                Text(roleName)
+                Image(systemName: message.role.icon)
+                    .foregroundColor(message.role.color)
+                Text(message.role.displayName)
                     .font(settings.bodyFont.weight(.semibold))
 
                 Spacer()
@@ -592,7 +565,7 @@ struct ExpandedMessageView: View {
                 }
 
                 if let timestamp = message.timestamp {
-                    Text(formattedTime(timestamp))
+                    Text(Formatters.timeFormatter.string(from: timestamp))
                         .font(settings.captionFont)
                         .foregroundColor(.secondary)
                 }
@@ -606,58 +579,16 @@ struct ExpandedMessageView: View {
             // Token stats
             if showTokenStats && message.usage.totalTokens > 0 {
                 HStack(spacing: 8) {
-                    Label("\(message.usage.inputTokens) in", systemImage: "arrow.down.circle")
-                    Label("\(message.usage.outputTokens) out", systemImage: "arrow.up.circle")
+                    Label("\(Formatters.tokens(message.usage.inputTokens)) in", systemImage: "arrow.down.circle")
+                    Label("\(Formatters.tokens(message.usage.outputTokens)) out", systemImage: "arrow.up.circle")
                 }
                 .font(.caption2)
                 .foregroundColor(.secondary)
             }
         }
         .padding()
-        .background(backgroundColor)
+        .background(message.role.color.opacity(0.1))
         .cornerRadius(8)
-    }
-
-    private var roleIcon: String {
-        switch message.role {
-        case .user: return "person.fill"
-        case .assistant: return "sparkles"
-        case .system: return "gear"
-        }
-    }
-
-    private var roleName: String {
-        switch message.role {
-        case .user: return "You"
-        case .assistant: return "Claude"
-        case .system: return "System"
-        }
-    }
-
-    private var roleColor: Color {
-        switch message.role {
-        case .user: return .blue
-        case .assistant: return .purple
-        case .system: return .gray
-        }
-    }
-
-    private var backgroundColor: Color {
-        switch message.role {
-        case .user: return Color.blue.opacity(0.1)
-        case .assistant: return Color.purple.opacity(0.1)
-        case .system: return Color.gray.opacity(0.1)
-        }
-    }
-
-    private static let timeFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.timeStyle = .short
-        return formatter
-    }()
-
-    private func formattedTime(_ date: Date) -> String {
-        Self.timeFormatter.string(from: date)
     }
 }
 

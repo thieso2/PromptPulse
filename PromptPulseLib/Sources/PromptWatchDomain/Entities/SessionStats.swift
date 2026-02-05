@@ -28,7 +28,7 @@ public struct SessionStats: Sendable, Equatable {
         self.duration = duration
     }
 
-    /// Calculate stats from a session
+    /// Calculate stats from a session (uses model-aware per-message pricing)
     public static func from(session: Session, using calculator: CostCalculator) -> SessionStats {
         var toolCalls = 0
 
@@ -41,7 +41,7 @@ public struct SessionStats: Sendable, Equatable {
         }
 
         let totalUsage = session.totalUsage
-        let cost = calculator.calculate(usage: totalUsage)
+        let cost = CostCalculator.calculateForSession(session)
 
         return SessionStats(
             totalMessages: session.messages.count,
@@ -73,11 +73,6 @@ public struct SessionStats: Sendable, Equatable {
 
     /// Formatted cost string
     public var formattedCost: String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .currency
-        formatter.currencyCode = "USD"
-        formatter.minimumFractionDigits = 4
-        formatter.maximumFractionDigits = 4
-        return formatter.string(from: estimatedCost as NSDecimalNumber) ?? "$0.0000"
+        CostCalculator.format(cost: estimatedCost)
     }
 }

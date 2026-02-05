@@ -44,16 +44,36 @@ final class AppState {
 
     var selectedIndex: Int = 0
 
+    // MARK: - Search State
+
+    var searchQuery: String = ""
+    var isSearching: Bool { !searchQuery.isEmpty }
+
+    /// Filtered projects based on search query
+    var filteredProjects: [ProjectDir] {
+        guard isSearching else { return projects }
+        let query = searchQuery.lowercased()
+        return projects.filter { $0.name.lowercased().contains(query) }
+    }
+
     // MARK: - Message View State
 
     var messageSelectedIndex: Int = 0
     var showOnlyUserPrompts: Bool = false
     var expandedPromptId: String? = nil
+    var messageSearchQuery: String = ""
+    var isSearchingMessages: Bool { !messageSearchQuery.isEmpty }
 
     /// Toggle user prompts filter
     func toggleUserPromptsFilter() {
         showOnlyUserPrompts.toggle()
         messageSelectedIndex = 0
+        updateDisplayedMessages()
+    }
+
+    /// Dismiss the current error
+    func dismissError() {
+        error = nil
     }
 
     // MARK: - Private
@@ -138,7 +158,6 @@ final class AppState {
 
         } catch {
             self.error = error
-            logMessage("Refresh error: \(error.localizedDescription)")
         }
     }
 
@@ -160,14 +179,12 @@ final class AppState {
             }
         } catch {
             self.error = error
-            logMessage("Load sessions error: \(error.localizedDescription)")
         }
     }
 
     /// Load sessions for a running process (by working directory)
     func loadSessions(for process: ClaudeProcess) async {
         guard let workDir = process.workingDirectory else {
-            logMessage("Process has no working directory")
             return
         }
 
@@ -187,41 +204,31 @@ final class AppState {
             }
         } catch {
             self.error = error
-            logMessage("Load sessions for process error: \(error.localizedDescription)")
         }
     }
 
     /// Load a full session with messages
     func loadSession(_ summary: SessionSummary, from origin: SessionDetailOrigin) async {
-        let startTime = CFAbsoluteTimeGetCurrent()
-        logMessage("loadSession START: \(summary.filePath)")
-
         // Navigate to loading state immediately for responsive UI
         navigationState = .loadingSession(origin: origin)
         isLoadingSession = true
         loadedSession = nil
-        logMessage("loadSession: nav state set, yielding... (\(Int((CFAbsoluteTimeGetCurrent() - startTime) * 1000))ms)")
 
         // Yield to let UI update before heavy work
         await Task.yield()
-        logMessage("loadSession: after yield (\(Int((CFAbsoluteTimeGetCurrent() - startTime) * 1000))ms)")
 
         do {
-            logMessage("loadSession: calling kit.loadSession...")
             let session = try await kit.loadSession(filePath: summary.filePath)
-            logMessage("loadSession: kit returned (\(Int((CFAbsoluteTimeGetCurrent() - startTime) * 1000))ms), \(session.messages.count) messages")
             loadedSession = session
             navigationState = .sessionDetail(session: session, origin: origin)
-            logMessage("loadSession: nav updated (\(Int((CFAbsoluteTimeGetCurrent() - startTime) * 1000))ms)")
+            updateDisplayedMessages()
         } catch {
             self.error = error
-            logMessage("Load session error: \(error.localizedDescription)")
             // Navigate back on error
             back()
         }
 
         isLoadingSession = false
-        logMessage("loadSession DONE (\(Int((CFAbsoluteTimeGetCurrent() - startTime) * 1000))ms)")
     }
 
     /// Navigate back
@@ -233,10 +240,12 @@ final class AppState {
             navigationState = .projects
             sessions = []
             selectedIndex = 0
+            searchQuery = ""
         case .processSessions:
             navigationState = .projects
             sessions = []
             selectedIndex = 0
+            searchQuery = ""
         case .loadingSession(let origin):
             loadedSession = nil
             selectedIndex = 0
@@ -258,6 +267,8 @@ final class AppState {
             messageSelectedIndex = 0
             showOnlyUserPrompts = false
             expandedPromptId = nil
+            messageSearchQuery = ""
+            displayedMessages = []
             switch origin {
             case .project(let project):
                 navigationState = .sessions(project: project)
@@ -269,20 +280,32 @@ final class AppState {
 
     // MARK: - Keyboard Navigation
 
-    /// Filtered messages for display
-    var displayedMessages: [Message] {
-        guard case .sessionDetail(let session, _) = navigationState else { return [] }
-        if showOnlyUserPrompts {
-            return session.messages.filter { $0.role == .user }
+    /// Cached filtered messages for display (avoids refiltering on every render)
+    private(set) var displayedMessages: [Message] = []
+
+    /// Recompute cached displayed messages when session or filter changes
+    func updateDisplayedMessages() {
+        guard case .sessionDetail(let session, _) = navigationState else {
+            displayedMessages = []
+            return
         }
-        return session.messages
+        var messages = session.messages
+        if showOnlyUserPrompts {
+            messages = messages.filter { $0.role == .user }
+        }
+        if isSearchingMessages {
+            let query = messageSearchQuery.lowercased()
+            messages = messages.filter { $0.textContent.lowercased().contains(query) }
+        }
+        displayedMessages = messages
+        messageSelectedIndex = 0
     }
 
     /// Total number of selectable items in current view
     var selectableItemCount: Int {
         switch navigationState {
         case .projects:
-            return processes.count + projects.count
+            return (isSearching ? 0 : processes.count) + filteredProjects.count
         case .sessions, .processSessions:
             return sessions.count
         case .sessionDetail:
@@ -318,14 +341,16 @@ final class AppState {
     func activateSelection() async {
         switch navigationState {
         case .projects:
-            // First processes, then projects
-            if selectedIndex < processes.count {
+            let processCount = isSearching ? 0 : processes.count
+            // First processes (hidden during search), then filtered projects
+            if selectedIndex < processCount {
                 let process = processes[selectedIndex]
                 await loadSessions(for: process)
             } else {
-                let projectIndex = selectedIndex - processes.count
-                if projectIndex < projects.count {
-                    let project = projects[projectIndex]
+                let projectIndex = selectedIndex - processCount
+                let visibleProjects = filteredProjects
+                if projectIndex < visibleProjects.count {
+                    let project = visibleProjects[projectIndex]
                     await loadSessions(for: project)
                 }
             }
@@ -399,9 +424,11 @@ final class AppState {
     }
 }
 
-/// Log to stdout with immediate flush
+/// Log to stdout with immediate flush (debug builds only)
 func logMessage(_ message: String) {
+    #if DEBUG
     let output = "[PromptPulse] \(message)\n"
     fputs(output, stdout)
     fflush(stdout)
+    #endif
 }

@@ -16,20 +16,6 @@ struct ProcessListView: View {
         processes.reduce(0) { $0 + $1.memoryMB }
     }
 
-    private var formattedTotalCPU: String {
-        if totalCPU > 99.9 {
-            return ">99%"
-        }
-        return String(format: "%.1f%%", totalCPU)
-    }
-
-    private var formattedTotalMemory: String {
-        if totalMemory > 1024 {
-            return String(format: "%.1fG", totalMemory / 1024)
-        }
-        return String(format: "%.0fM", totalMemory)
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             // Section header
@@ -46,7 +32,7 @@ struct ProcessListView: View {
                     HStack(spacing: 2) {
                         Image(systemName: "cpu")
                             .font(.caption2)
-                        Text(formattedTotalCPU)
+                        Text(Formatters.cpu(totalCPU))
                             .font(.caption)
                     }
                     .foregroundColor(cpuColor(for: totalCPU))
@@ -54,7 +40,7 @@ struct ProcessListView: View {
                     HStack(spacing: 2) {
                         Image(systemName: "memorychip")
                             .font(.caption2)
-                        Text(formattedTotalMemory)
+                        Text(Formatters.memory(totalMemory))
                             .font(.caption)
                     }
                     .foregroundColor(.secondary)
@@ -76,16 +62,6 @@ struct ProcessListView: View {
         }
     }
 
-    private func cpuColor(for percent: Double) -> Color {
-        if percent >= 50 {
-            return .red
-        } else if percent >= 20 {
-            return .orange
-        } else if percent >= 5 {
-            return .yellow
-        }
-        return .secondary
-    }
 }
 
 /// Single process row
@@ -138,16 +114,16 @@ struct ProcessRowView: View {
                         HStack(spacing: 2) {
                             Image(systemName: "cpu")
                                 .font(.caption2)
-                            Text(formattedCPU)
+                            Text(Formatters.cpu(process.cpuPercent))
                                 .font(.caption)
                         }
-                        .foregroundColor(cpuColor)
+                        .foregroundColor(cpuColor(for: process.cpuPercent))
 
                         // Memory
                         HStack(spacing: 2) {
                             Image(systemName: "memorychip")
                                 .font(.caption2)
-                            Text(formattedMemory)
+                            Text(Formatters.memory(process.memoryMB))
                                 .font(.caption)
                         }
                         .foregroundColor(.secondary)
@@ -155,7 +131,7 @@ struct ProcessRowView: View {
 
                     // Uptime
                     if let startTime = process.startTime {
-                        Text(formattedUptime(from: startTime))
+                        Text(Formatters.uptime(from: startTime))
                             .font(.caption2)
                             .foregroundColor(.secondary)
                     }
@@ -202,43 +178,4 @@ struct ProcessRowView: View {
         return dir
     }
 
-    private var formattedCPU: String {
-        if process.cpuPercent > 99.9 {
-            return ">99%"
-        }
-        return String(format: "%.1f%%", process.cpuPercent)
-    }
-
-    private var formattedMemory: String {
-        if process.memoryMB > 1024 {
-            return String(format: "%.2fG", process.memoryMB / 1024)
-        }
-        return String(format: "%.0fM", process.memoryMB)
-    }
-
-    private var cpuColor: Color {
-        if process.cpuPercent >= 50 {
-            return .red
-        } else if process.cpuPercent >= 20 {
-            return .orange
-        } else if process.cpuPercent >= 5 {
-            return .yellow
-        }
-        return .secondary
-    }
-
-    private func formattedUptime(from startTime: Date) -> String {
-        let duration = Date().timeIntervalSince(startTime)
-        let days = Int(duration / 86400)
-        let hours = Int((duration.truncatingRemainder(dividingBy: 86400)) / 3600)
-        let minutes = Int((duration.truncatingRemainder(dividingBy: 3600)) / 60)
-
-        if days > 0 {
-            return "\(days)d \(hours)h"
-        }
-        if hours > 0 {
-            return "\(hours)h \(minutes)m"
-        }
-        return "\(minutes)m"
-    }
 }

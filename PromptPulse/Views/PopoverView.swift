@@ -9,6 +9,15 @@ struct PopoverView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            // Error banner
+            if let error = state.error {
+                ErrorBannerView(
+                    message: error.localizedDescription,
+                    onDismiss: { state.dismissError() },
+                    onRetry: { Task { await state.refresh() } }
+                )
+            }
+
             switch state.navigationState {
             case .projects:
                 mainContentView
@@ -121,11 +130,24 @@ struct PopoverView: View {
 
             Divider()
 
+            // Search bar
+            SearchBarView(query: Binding(
+                get: { state.searchQuery },
+                set: { newValue in
+                    state.searchQuery = newValue
+                    state.selectedIndex = 0
+                }
+            ))
+            .padding(.horizontal)
+            .padding(.vertical, 6)
+
+            Divider()
+
             // Main content
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    // Running processes section
-                    if !state.processes.isEmpty {
+                    // Running processes section (hidden during search)
+                    if !state.isSearching && !state.processes.isEmpty {
                         ProcessListView(
                             processes: state.processes,
                             onSelect: { process in
@@ -138,10 +160,10 @@ struct PopoverView: View {
                         )
                     }
 
-                    // Projects section
-                    if !state.projects.isEmpty {
+                    // Projects section (filtered during search)
+                    if !state.filteredProjects.isEmpty {
                         ProjectListView(
-                            projects: state.projects,
+                            projects: state.filteredProjects,
                             onSelect: { project in
                                 Task {
                                     await state.loadSessions(for: project)
@@ -151,12 +173,14 @@ struct PopoverView: View {
                                 state.openInFinder(project)
                             },
                             selectedIndex: state.selectedIndex,
-                            indexOffset: state.processes.count
+                            indexOffset: state.isSearching ? 0 : state.processes.count
                         )
                     }
 
                     // Empty state
-                    if state.processes.isEmpty && state.projects.isEmpty && !state.isLoading {
+                    if state.isSearching && state.filteredProjects.isEmpty {
+                        noSearchResultsView
+                    } else if state.processes.isEmpty && state.projects.isEmpty && !state.isLoading {
                         EmptyStateView()
                     }
                 }
@@ -177,6 +201,49 @@ struct PopoverView: View {
             .padding(.horizontal)
             .padding(.vertical, 8)
         }
+    }
+
+    private var noSearchResultsView: some View {
+        VStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .font(.title2)
+                .foregroundColor(.secondary)
+            Text("No projects matching \"\(state.searchQuery)\"")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 20)
+    }
+}
+
+/// Search bar for filtering projects
+struct SearchBarView: View {
+    @Binding var query: String
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass")
+                .foregroundColor(.secondary)
+                .font(.caption)
+
+            TextField("Search projects...", text: $query)
+                .textFieldStyle(.plain)
+                .font(.caption)
+
+            if !query.isEmpty {
+                Button(action: { query = "" }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.secondary)
+                        .font(.caption)
+                }
+                .buttonStyle(.borderless)
+            }
+        }
+        .padding(6)
+        .background(Color(NSColor.textBackgroundColor))
+        .cornerRadius(6)
     }
 }
 
@@ -238,7 +305,7 @@ struct ProcessSessionsView: View {
 
             // Sessions list
             ScrollView {
-                VStack(alignment: .leading, spacing: 8) {
+                LazyVStack(alignment: .leading, spacing: 8) {
                     if isLoading {
                         loadingView
                     } else if sessions.isEmpty {
@@ -292,18 +359,6 @@ struct StatsHeaderView: View {
     var totalMemoryMB: Double = 0
     let isLoading: Bool
 
-    private var formattedCPU: String {
-        if totalCPU > 99.9 { return ">99%" }
-        return String(format: "%.1f%%", totalCPU)
-    }
-
-    private var formattedMemory: String {
-        if totalMemoryMB > 1024 {
-            return String(format: "%.1fG", totalMemoryMB / 1024)
-        }
-        return String(format: "%.0fM", totalMemoryMB)
-    }
-
     var body: some View {
         HStack {
             // Status indicator
@@ -327,13 +382,13 @@ struct StatsHeaderView: View {
                     if processCount > 0 {
                         HStack(spacing: 4) {
                             Image(systemName: "cpu")
-                            Text(formattedCPU)
+                            Text(Formatters.cpu(totalCPU))
                         }
-                        .foregroundColor(cpuColor)
+                        .foregroundColor(cpuColor(for: totalCPU))
 
                         HStack(spacing: 4) {
                             Image(systemName: "memorychip")
-                            Text(formattedMemory)
+                            Text(Formatters.memory(totalMemoryMB))
                         }
                         .foregroundColor(.secondary)
                     }
@@ -351,12 +406,6 @@ struct StatsHeaderView: View {
         }
     }
 
-    private var cpuColor: Color {
-        if totalCPU >= 50 { return .red }
-        if totalCPU >= 20 { return .orange }
-        if totalCPU >= 5 { return .yellow }
-        return .secondary
-    }
 }
 
 /// Empty state view
@@ -476,5 +525,43 @@ struct SessionLoadingView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(minHeight: 200)
+    }
+}
+
+/// Dismissable error banner shown at the top of the popover
+struct ErrorBannerView: View {
+    let message: String
+    let onDismiss: () -> Void
+    let onRetry: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundColor(.white)
+
+            Text(message)
+                .font(.caption)
+                .foregroundColor(.white)
+                .lineLimit(2)
+
+            Spacer()
+
+            Button(action: onRetry) {
+                Image(systemName: "arrow.clockwise")
+                    .foregroundColor(.white)
+            }
+            .buttonStyle(.borderless)
+            .help("Retry")
+
+            Button(action: onDismiss) {
+                Image(systemName: "xmark")
+                    .foregroundColor(.white.opacity(0.8))
+            }
+            .buttonStyle(.borderless)
+            .help("Dismiss")
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color.red.opacity(0.85))
     }
 }
