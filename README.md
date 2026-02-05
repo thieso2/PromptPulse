@@ -47,7 +47,7 @@
 ### Homebrew (Recommended)
 
 ```bash
-brew install thieso2/tap/promptpulse
+brew install --cask thieso2/tap/promptpulse
 ```
 
 ### Direct Download

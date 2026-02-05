@@ -157,6 +157,63 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Calculate SHA256
+        id: sha256
+        run: |
+          SHA256=$(shasum -a 256 ${{ steps.package.outputs.ZIP_NAME }} | cut -d ' ' -f 1)
+          echo "SHA256=$SHA256" >> $GITHUB_OUTPUT
+          echo "SHA256: $SHA256"
+
+      - name: Update Homebrew Tap
+        if: ${{ !contains(github.ref, '-beta') && !contains(github.ref, '-alpha') }}
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          if [ -z "$HOMEBREW_TAP_TOKEN" ]; then
+            echo "::warning::HOMEBREW_TAP_TOKEN not set, skipping Homebrew tap update"
+            exit 0
+          fi
+
+          VERSION=${{ steps.version.outputs.VERSION }}
+          SHA256=${{ steps.sha256.outputs.SHA256 }}
+
+          # Clone homebrew-tap
+          git clone https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/thieso2/homebrew-tap.git homebrew-tap
+          cd homebrew-tap
+
+          # Create Casks directory if it doesn't exist
+          mkdir -p Casks
+
+          # Generate the Cask file using printf to avoid YAML heredoc issues
+          printf '%s\n' \
+            'cask "promptpulse" do' \
+            "  version \"${VERSION}\"" \
+            "  sha256 \"${SHA256}\"" \
+            '' \
+            '  url "https://github.com/thieso2/PromptPulse/releases/download/v#{version}/PromptPulse-#{version}-macOS.zip"' \
+            '  name "PromptPulse"' \
+            '  desc "macOS menubar app for monitoring Claude Code CLI sessions"' \
+            '  homepage "https://github.com/thieso2/PromptPulse"' \
+            '' \
+            '  depends_on macos: ">= :sequoia"' \
+            '' \
+            '  app "PromptPulse.app"' \
+            '' \
+            '  zap trash: [' \
+            '    "~/Library/Preferences/dev.thies.PromptPulse.plist",' \
+            '    "~/Library/Application Support/PromptPulse",' \
+            '  ]' \
+            'end' > Casks/promptpulse.rb
+
+          # Configure git
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Commit and push
+          git add Casks/promptpulse.rb
+          git commit -m "Update promptpulse to v${VERSION}" || echo "No changes to commit"
+          git push
+
       - name: Cleanup keychain
         if: always()
         run: |
