@@ -21,7 +21,7 @@ let project = Project(
                 "LSUIElement": true,
                 "CFBundleIconFile": "AppIcon",
                 "CFBundleDisplayName": "PromptPulse",
-                "CFBundleShortVersionString": "0.3.2",
+                "CFBundleShortVersionString": "0.3.3",
                 "CFBundleVersion": "1",
                 "NSHumanReadableCopyright": "Copyright (c) 2026 Thies C. Arntzen (thieso@gmail.com)",
                 "LSMinimumSystemVersion": "15.0",
