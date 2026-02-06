@@ -78,5 +78,17 @@
         type="application/octet-stream"
       />
     </item>
+    <item>
+      <title>Version 0.3.7</title>
+      <pubDate>Fri, 06 Feb 2026 08:36:55 +0000</pubDate>
+      <enclosure
+        url="https://github.com/thieso2/PromptPulse/releases/download/v0.3.7/PromptPulse-0.3.7-macOS.zip"
+        sparkle:version="0.3.7"
+        sparkle:shortVersionString="0.3.7"
+        sparkle:edSignature="7kXc8ZqyELejWRIOLSvm5Ea4b0gLTxIVDdZDgqCZlf/gcXXmEfmkRfPkIYVO7IHdwY9MUhxUFsK5P0F3Da0WBg=="
+        length="3680137"
+        type="application/octet-stream"
+      />
+    </item>
   </channel>
 </rss>
