@@ -6,5 +6,17 @@
     <description>Most recent changes with links to updates.</description>
     <language>en</language>
     <!-- Items are inserted here by CI on each release -->
+    <item>
+      <title>Version 0.3.1</title>
+      <pubDate>Fri, 06 Feb 2026 06:45:36 +0000</pubDate>
+      <enclosure
+        url="https://github.com/thieso2/PromptPulse/releases/download/v0.3.1/PromptPulse-0.3.1-macOS.zip"
+        sparkle:version="0.3.1"
+        sparkle:shortVersionString="0.3.1"
+        sparkle:edSignature="iF1RpW4cTQlhqP9xxF0oG11EZ4f9Bgsg4WBStAAfdTKD5zDl4N9Xae0SzzskY5udOrNsqdCMUzxgOkRqjp94AA=="
+        length="3680052"
+        type="application/octet-stream"
+      />
+    </item>
   </channel>
 </rss>
