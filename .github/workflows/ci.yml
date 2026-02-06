@@ -25,7 +25,7 @@ jobs:
         run: mise exec -- tuist xcodebuild build -scheme PromptPulse -configuration Debug
 
       - name: Run tests
-        run: mise exec -- tuist xcodebuild test -scheme PromptPulseTests -configuration Debug
+        run: mise exec -- tuist xcodebuild test -scheme PromptPulse -configuration Debug
 
   build-release:
     runs-on: macos-15
