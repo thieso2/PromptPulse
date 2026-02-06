@@ -23,7 +23,7 @@ let project = Project(
                 "CFBundleDisplayName": "PromptPulse",
                 "CFBundleShortVersionString": "0.3.2",
                 "CFBundleVersion": "1",
-                "NSHumanReadableCopyright": "Copyright 2025",
+                "NSHumanReadableCopyright": "Copyright (c) 2026 Thies C. Arntzen (thieso@gmail.com)",
                 "LSMinimumSystemVersion": "15.0",
                 "SUFeedURL": "https://thieso2.github.io/PromptPulse/appcast.xml",
                 "SUPublicEDKey": "E5BFoa/g1Sd/vKtouHqmBjic17zqasPPZLl7QKFvhIM=",
