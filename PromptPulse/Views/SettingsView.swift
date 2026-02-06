@@ -7,7 +7,7 @@ struct SettingsView: View {
     @ObservedObject private var checkForUpdatesVM: CheckForUpdatesViewModel
 
     init() {
-        let updater = AppDelegate.shared!.updater
+        let updater = AppDelegate.shared?.updater
         _checkForUpdatesVM = ObservedObject(wrappedValue: CheckForUpdatesViewModel(updater: updater))
     }
 

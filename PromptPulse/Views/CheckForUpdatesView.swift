@@ -7,18 +7,19 @@ import SwiftUI
 final class CheckForUpdatesViewModel: ObservableObject {
     @Published var canCheckForUpdates = false
 
-    private let updater: SPUUpdater
+    private let updater: SPUUpdater?
     private var cancellable: AnyCancellable?
 
-    init(updater: SPUUpdater) {
+    init(updater: SPUUpdater?) {
         self.updater = updater
+        guard let updater else { return }
         cancellable = updater.publisher(for: \.canCheckForUpdates)
             .receive(on: DispatchQueue.main)
             .assign(to: \.canCheckForUpdates, on: self)
     }
 
     func checkForUpdates() {
-        updater.checkForUpdates()
+        updater?.checkForUpdates()
     }
 }
 
