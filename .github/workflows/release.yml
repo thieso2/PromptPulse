@@ -207,17 +207,22 @@ jobs:
           export DOWNLOAD_URL="https://github.com/thieso2/PromptPulse/releases/download/v${VERSION}/${ZIP_NAME}"
           export PUB_DATE=$(date -u +"%a, %d %b %Y %H:%M:%S %z")
 
+          # Switch to main and pull latest (CI checks out the tag, so main may be ahead)
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          git checkout main
+          git pull --rebase origin main
+
           # Insert new item before </channel>
           ITEM="    <item>\n      <title>Version ${VERSION}</title>\n      <pubDate>${PUB_DATE}</pubDate>\n      <enclosure\n        url=\"${DOWNLOAD_URL}\"\n        sparkle:version=\"${VERSION}\"\n        sparkle:shortVersionString=\"${VERSION}\"\n        sparkle:edSignature=\"${ED_SIGNATURE}\"\n        length=\"${LENGTH}\"\n        type=\"application/octet-stream\"\n      />\n    </item>\n  "
           awk -v item="$ITEM" '{gsub(/  <\/channel>/, item "</channel>")}1' docs/appcast.xml > docs/appcast.xml.tmp
           mv docs/appcast.xml.tmp docs/appcast.xml
 
-          # Commit updated appcast
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          # Commit and push
           git add docs/appcast.xml
           git commit -m "chore(appcast): add v${VERSION} release entry"
-          git push origin HEAD:main
+          git push origin main
 
       - name: Update Homebrew Tap
         if: ${{ !contains(github.ref, '-beta') && !contains(github.ref, '-alpha') }}
