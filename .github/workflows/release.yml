@@ -207,38 +207,10 @@ jobs:
           export DOWNLOAD_URL="https://github.com/thieso2/PromptPulse/releases/download/v${VERSION}/${ZIP_NAME}"
           export PUB_DATE=$(date -u +"%a, %d %b %Y %H:%M:%S %z")
 
-          # Insert new item before </channel> using python for reliable XML manipulation
-          python3 - <<'PYEOF'
-import os
-
-version = os.environ["VERSION"]
-ed_sig = os.environ["ED_SIGNATURE"]
-length = os.environ["LENGTH"]
-download_url = os.environ["DOWNLOAD_URL"]
-pub_date = os.environ["PUB_DATE"]
-
-item = f"""    <item>
-      <title>Version {version}</title>
-      <pubDate>{pub_date}</pubDate>
-      <enclosure
-        url="{download_url}"
-        sparkle:version="{version}"
-        sparkle:shortVersionString="{version}"
-        sparkle:edSignature="{ed_sig}"
-        length="{length}"
-        type="application/octet-stream"
-      />
-    </item>
-  """
-
-with open("docs/appcast.xml", "r") as f:
-    content = f.read()
-
-content = content.replace("  </channel>", item + "</channel>")
-
-with open("docs/appcast.xml", "w") as f:
-    f.write(content)
-PYEOF
+          # Insert new item before </channel>
+          ITEM="    <item>\n      <title>Version ${VERSION}</title>\n      <pubDate>${PUB_DATE}</pubDate>\n      <enclosure\n        url=\"${DOWNLOAD_URL}\"\n        sparkle:version=\"${VERSION}\"\n        sparkle:shortVersionString=\"${VERSION}\"\n        sparkle:edSignature=\"${ED_SIGNATURE}\"\n        length=\"${LENGTH}\"\n        type=\"application/octet-stream\"\n      />\n    </item>\n  "
+          awk -v item="$ITEM" '{gsub(/  <\/channel>/, item "</channel>")}1' docs/appcast.xml > docs/appcast.xml.tmp
+          mv docs/appcast.xml.tmp docs/appcast.xml
 
           # Commit updated appcast
           git config user.name "github-actions[bot]"
