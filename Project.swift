@@ -7,7 +7,8 @@ let project = Project(
         developmentRegion: "en"
     ),
     packages: [
-        .local(path: "./PromptPulseLib")
+        .local(path: "./PromptPulseLib"),
+        .remote(url: "https://github.com/sparkle-project/Sparkle", requirement: .upToNextMajor(from: "2.7.0"))
     ],
     targets: [
         .target(
@@ -20,10 +21,13 @@ let project = Project(
                 "LSUIElement": true,
                 "CFBundleIconFile": "AppIcon",
                 "CFBundleDisplayName": "PromptPulse",
-                "CFBundleShortVersionString": "0.3.0",
+                "CFBundleShortVersionString": "0.3.1",
                 "CFBundleVersion": "1",
                 "NSHumanReadableCopyright": "Copyright 2025",
-                "LSMinimumSystemVersion": "15.0"
+                "LSMinimumSystemVersion": "15.0",
+                "SUFeedURL": "https://thieso2.github.io/PromptPulse/appcast.xml",
+                "SUPublicEDKey": "E5BFoa/g1Sd/vKtouHqmBjic17zqasPPZLl7QKFvhIM=",
+                "SUEnableAutomaticChecks": true
             ]),
             sources: ["PromptPulse/**/*.swift"],
             resources: [
@@ -31,7 +35,8 @@ let project = Project(
             ],
             entitlements: .file(path: "PromptPulse/Resources/PromptPulse.entitlements"),
             dependencies: [
-                .package(product: "PromptWatchKit")
+                .package(product: "PromptWatchKit"),
+                .package(product: "Sparkle")
             ],
             settings: .settings(
                 base: [

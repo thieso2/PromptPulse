@@ -164,6 +164,89 @@ jobs:
           echo "SHA256=$SHA256" >> $GITHUB_OUTPUT
           echo "SHA256: $SHA256"
 
+      - name: Sign release with Sparkle EdDSA
+        if: ${{ !contains(github.ref, '-beta') && !contains(github.ref, '-alpha') }}
+        id: sparkle_sign
+        env:
+          SPARKLE_EDDSA_PRIVATE_KEY: ${{ secrets.SPARKLE_EDDSA_PRIVATE_KEY }}
+        run: |
+          if [ -z "$SPARKLE_EDDSA_PRIVATE_KEY" ]; then
+            echo "::warning::SPARKLE_EDDSA_PRIVATE_KEY not set, skipping Sparkle signing"
+            echo "SIGNED=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Download Sparkle release tarball for sign_update tool
+          SPARKLE_VERSION="2.7.0"
+          curl -sL "https://github.com/sparkle-project/Sparkle/releases/download/${SPARKLE_VERSION}/Sparkle-${SPARKLE_VERSION}.tar.xz" -o sparkle.tar.xz
+          mkdir -p sparkle-tools
+          tar -xf sparkle.tar.xz -C sparkle-tools
+
+          # Sign the ZIP with EdDSA
+          ZIP_PATH=${{ steps.package.outputs.ZIP_PATH }}
+          SIGNATURE=$(echo "$SPARKLE_EDDSA_PRIVATE_KEY" | ./sparkle-tools/bin/sign_update "$ZIP_PATH" -f -)
+          # sign_update outputs: sparkle:edSignature="..." length="..."
+          ED_SIGNATURE=$(echo "$SIGNATURE" | sed -n 's/.*edSignature="\([^"]*\)".*/\1/p')
+          LENGTH=$(stat -f%z "$ZIP_PATH")
+
+          echo "ED_SIGNATURE=$ED_SIGNATURE" >> $GITHUB_OUTPUT
+          echo "LENGTH=$LENGTH" >> $GITHUB_OUTPUT
+          echo "SIGNED=true" >> $GITHUB_OUTPUT
+          echo "Sparkle EdDSA signature: $ED_SIGNATURE"
+          echo "File length: $LENGTH"
+
+      - name: Update appcast.xml
+        if: steps.sparkle_sign.outputs.SIGNED == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          export VERSION=${{ steps.version.outputs.VERSION }}
+          export ED_SIGNATURE=${{ steps.sparkle_sign.outputs.ED_SIGNATURE }}
+          export LENGTH=${{ steps.sparkle_sign.outputs.LENGTH }}
+          ZIP_NAME=${{ steps.package.outputs.ZIP_NAME }}
+          export DOWNLOAD_URL="https://github.com/thieso2/PromptPulse/releases/download/v${VERSION}/${ZIP_NAME}"
+          export PUB_DATE=$(date -u +"%a, %d %b %Y %H:%M:%S %z")
+
+          # Insert new item before </channel> using python for reliable XML manipulation
+          python3 - <<'PYEOF'
+import os
+
+version = os.environ["VERSION"]
+ed_sig = os.environ["ED_SIGNATURE"]
+length = os.environ["LENGTH"]
+download_url = os.environ["DOWNLOAD_URL"]
+pub_date = os.environ["PUB_DATE"]
+
+item = f"""    <item>
+      <title>Version {version}</title>
+      <pubDate>{pub_date}</pubDate>
+      <enclosure
+        url="{download_url}"
+        sparkle:version="{version}"
+        sparkle:shortVersionString="{version}"
+        sparkle:edSignature="{ed_sig}"
+        length="{length}"
+        type="application/octet-stream"
+      />
+    </item>
+  """
+
+with open("docs/appcast.xml", "r") as f:
+    content = f.read()
+
+content = content.replace("  </channel>", item + "</channel>")
+
+with open("docs/appcast.xml", "w") as f:
+    f.write(content)
+PYEOF
+
+          # Commit updated appcast
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/appcast.xml
+          git commit -m "chore(appcast): add v${VERSION} release entry"
+          git push origin HEAD:main
+
       - name: Update Homebrew Tap
         if: ${{ !contains(github.ref, '-beta') && !contains(github.ref, '-alpha') }}
         env:

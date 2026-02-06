@@ -1,4 +1,5 @@
 import AppKit
+import Sparkle
 import SwiftUI
 
 @MainActor
@@ -11,6 +12,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let state = AppState()
     private var eventMonitor: Any?
     private var themeObservation: Any?
+
+    /// Sparkle updater controller — initialized once at launch.
+    let updaterController = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
+    /// Convenience accessor for the underlying updater.
+    var updater: SPUUpdater { updaterController.updater }
 
     private var settings: AppSettings { AppSettings.shared }
 
@@ -159,6 +165,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let menu = NSMenu()
 
         menu.addItem(NSMenuItem(title: "Refresh", action: #selector(refreshData), keyEquivalent: "r"))
+        menu.addItem(NSMenuItem.separator())
+
+        let checkForUpdatesItem = NSMenuItem(
+            title: "Check for Updates...",
+            action: #selector(SPUStandardUpdaterController.checkForUpdates(_:)),
+            keyEquivalent: ""
+        )
+        checkForUpdatesItem.target = updaterController
+        menu.addItem(checkForUpdatesItem)
+
         menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: "Settings...", action: #selector(openSettings), keyEquivalent: ","))
         menu.addItem(NSMenuItem.separator())

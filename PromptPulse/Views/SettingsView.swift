@@ -1,8 +1,15 @@
+import Sparkle
 import SwiftUI
 
 /// Settings window view
 struct SettingsView: View {
     @Bindable var settings = AppSettings.shared
+    @ObservedObject private var checkForUpdatesVM: CheckForUpdatesViewModel
+
+    init() {
+        let updater = AppDelegate.shared!.updater
+        _checkForUpdatesVM = ObservedObject(wrappedValue: CheckForUpdatesViewModel(updater: updater))
+    }
 
     var body: some View {
         TabView {
@@ -14,6 +21,11 @@ struct SettingsView: View {
             displayTab
                 .tabItem {
                     Label("Display", systemImage: "text.alignleft")
+                }
+
+            updatesTab
+                .tabItem {
+                    Label("Updates", systemImage: "arrow.triangle.2.circlepath")
                 }
         }
         .frame(width: 400, height: 320)
@@ -111,6 +123,27 @@ struct SettingsView: View {
                     .textFieldStyle(.roundedBorder)
                     Text("px")
                         .foregroundColor(.secondary)
+                }
+            }
+
+            Spacer()
+        }
+        .padding(20)
+    }
+
+    private var updatesTab: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Software Updates")
+                    .font(.headline)
+
+                CheckForUpdatesView(viewModel: checkForUpdatesVM)
+
+                if let updater = AppDelegate.shared?.updater {
+                    Toggle("Automatically check for updates", isOn: Binding(
+                        get: { updater.automaticallyChecksForUpdates },
+                        set: { updater.automaticallyChecksForUpdates = $0 }
+                    ))
                 }
             }
 
